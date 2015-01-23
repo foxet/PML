@@ -1,0 +1,120 @@
+---
+title: "Human Activity Recognition"
+author: "foxet"
+date: "2015年1月22日"
+output:
+  html_document:
+    keep_md: yes
+    theme: journal
+---
+
+___note:  I'm not a native english speaker, and I'm learning english, machine learning and markdown. So, I'm sorry that my report is going to torchure you. :)__   
+        
+-----------------------------------------------------------------------------------------------
+
+### Introduction
+This project is to built an machine learning algorithm to discriminating between different human activities. The experimental data is from accelerometers on the belt, forearm, arm, and dumbell of 6 participants who were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here:  
+http://groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset).    
+
+#### Data
+ * The training data for this project are available here:  
+ https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv  
+
+ * The test data are available here:  
+ https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv  
+ 
+ * The data for this project come from this source:   
+ http://groupware.les.inf.puc-rio.br/har.   
+
+```{r eval=TRUE,message=FALSE}
+library(caret)
+library(dplyr)
+train<-read.csv('training.csv')
+test<-read.csv('testing.csv')
+set.seed(1234)
+
+```
+```{r eval=FALSE}
+
+train[,-160]<-sapply(train[,-160],function(x){as.numeric(as.character(x))})
+```
+
+
+---------------------------------------------------------------------------------------------
+
+#### Prepocess 
+* Remove unrelated variables: "X" "user_name", "raw_timestamp_part_1","raw_timestamp_part_2"     "cvtd_timestamp","new_window":
+
+```{r}
+train<-train[,-c(1:6)]
+```
+
+* Remove 'NA' variables: Some variables contain a large proportion of NA(>95%). Imputation can't do well in this case. In addition, all these variables are secondary measurement such as standard Deviation, mean value and kurtosis. their information can be reflected by the other predictors.
+
+```{r}
+allNA<-sapply(train,function(x)sum(is.na(x)))>0
+train<-train[,!allNA]
+```
+
+
+* Data Splitting: separate data set into two sets, called the training set and the testing set. The function approximator fits a function and tuning the model parameters using the training set only. Then the fitted model is asked to predict the output values for the data in the testing set. 
+
+
+```{r eval=T}
+inTrain<-createDataPartition(y<-train$classe,p=0.75,list=FALSE)
+training<-train[inTrain,]
+testing<-train[-inTrain,]
+
+```
+
+---------------------------------------------------------------------------------------------
+
+#### Model Tuning
+
+```{r eval=FALSE}
+modelFit<-train(classe~.,method='rf',data=training)
+```
+
+* Using randomforest provide by caret package to fit the model. Train function use 5-fold cross-validation to tune the parameter 'mtry' of candidate models. Then it returen the best model with best parameter.
+
+```{r eval=FALSE}
+cr <- trainControl(
+        method = "cv",
+        number = 5,
+        )
+modelFit<-train(classe~.,method='rf',trControl=cr,data=training)
+```
+```{r eval=TRUE,echo=FALSE,include=FALSE}
+modelFit=readRDS('modelFit')
+```
+```{r eval=TRUE}
+modelFit
+```
+
+
+---------------------------------------------------------------------------------------------
+
+#### In-Sample Error Evaluation  
+```{r eval=T,echo=TRUE}
+print(modelFit$results[2,])
+print(modelFit$finalModel$confusion)
+```
+  
+  
+  The model's performance on training set is great. However, because of overfitting, accuracy on the training set is usually optimistic, a better estimate should come from an independent test set. 
+ 
+
+---------------------------------------------------------------------------------------------
+  
+#### Out-Of-Sample Error evaluation    
+
+```{r eval=T}
+confusionMatrix(testing$classe,predict(modelFit,testing))
+```
+
+Out-Of-Sample Error is the error rate from a new data set. I used the independent testing set to evaluate this error. This is called 'holdout method', the simplest cross validation method. The advantage of this method is that it is usually preferable to the residual method and takes no longer to compute. But I also know this method can increase variance.   
+The prediction on the testing set is surprising, even better than the training set, that's unexpected.  
+
+
+---------------------------------------------------------------------------------------------
+#### END
